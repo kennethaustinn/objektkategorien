@@ -13,7 +13,7 @@ categories = ['headset', 'ba']
 data = []
 labels = []
 for category_idx, category in enumerate(categories):
-    for file in os.listdir(os.path.join(category)):
+    for file in os.listdir(os.path.join(input_dir, category)):
         name, ext = os.path.splitext(file)
         ext = ext[1:]
         if ext == 'npy':
