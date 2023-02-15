@@ -1,6 +1,6 @@
 from torchvision import models, transforms
 from tkinter import *
-from tkinter import messagebox
+from tkinter import messagebox, filedialog
 import torch
 import torch.nn
 from PIL import Image, ImageTk
@@ -21,16 +21,6 @@ labels = './imagenet_classes.txt'
 data = []
 labelsTraining = []
 categories =[]
-
-data_transforms = transforms.Compose(
-[
-    transforms.Resize(256),
-    transforms.CenterCrop(224),
-    transforms.ToTensor(),                     
-    transforms.Normalize(                    
-    mean=[0.485, 0.456, 0.406],                
-    std=[0.229, 0.224, 0.225]                  
-    )])
 
 def trainieren(categories):
     for category_idx, category in enumerate(categories):
@@ -66,10 +56,22 @@ def trainieren(categories):
     score = accuracy_score(y_prediction, y_test)
 
     print(f"The model is {score*100}% accurate")
-    pickle.dump(modelNeu, open('./modelNeu.p', 'wb'))
+
+    global fileName 
+    fileName = 'modelNeu-' + '-'.join(categories)
     
+    pickle.dump(modelNeu, open(f'./model/{fileName}' + '.p', 'wb'))
+    
+    messagebox.showinfo("Information", f'Objekte erfolgreich trainiert mit {str(score*100)}% Genauigkeit!\n Model ist jetzt gespeichert')
 
 def preprocess(image):  
+    data_transforms = transforms.Compose(
+    [transforms.Resize(256),
+    transforms.CenterCrop(224),
+    transforms.ToTensor(),                     
+    transforms.Normalize(                    
+    mean=[0.485, 0.456, 0.406],                
+    std=[0.229, 0.224, 0.225])])
     image = Image.fromarray(image) #Webcam frames are numpy array format, therefore transform back to PIL image
     image = data_transforms(image)
     image = torch.unsqueeze(image,0)
@@ -87,7 +89,8 @@ class App:
         self.window.title(window_title)
         self.video_source = video_source
         self.makeSnapshot = False
-        self.modelTrain = None
+        self.modelTrain = None # optional kalo ada kategori kosong bisa tak buang
+        self.kategoriKosong = True
         # open video source (by default this will try to open the computer webcam)
         self.vid = MyVideoCapture(self.video_source)
 
@@ -112,6 +115,8 @@ class App:
         self.btn_trainieren.pack()
         self.text_output2 = Text(self.window, width=50, height=3,font="Times 12", borderwidth=5)
         self.text_output2.pack()
+        self.btn_laden=Button(window, text="Laden", width=25, command=self.browseModelFile)
+        self.btn_laden.pack()
 
         # After it is called once, the update method will be automatically called every delay milliseconds
         self.delay = 100
@@ -119,6 +124,22 @@ class App:
 
         self.window.mainloop()
 
+    def browseModelFile(self):
+        fileTypes = (('P Dateien', '*.p'), ('All files', '*.*')) 
+        filePath = filedialog.askopenfilename(title='Wählen trainierte Modelldatei aus', initialdir='./model',filetypes=fileTypes)
+        ausgewählteDatei = os.path.basename(filePath)
+        messagebox.showinfo(title='Ausgewählte Datei',message='Sie haben '+ ausgewählteDatei +' Modell ausgewählt')
+        self.modelTrain = pickle.load(open(f'./model/{ausgewählteDatei}','rb'))
+        ausgewählteDateiOhneExt = os.path.splitext(ausgewählteDatei)[0]
+        parts = ausgewählteDateiOhneExt.split('-')
+        for i in parts[1:]:
+            categories.append(i)
+    def categoryIn(self):
+        if self.kategoriKosong == True:
+            self.kategoriKosong = False
+            self.browseModelFile()
+        else: 
+            self.kategoriKosong = True
     def buttonClicked(self):
         if self.makeSnapshot == False:
             self.makeSnapshot = True
@@ -133,11 +154,11 @@ class App:
     def buttonTrainieren(self):
         if len(categories) > 1:
             trainieren(categories)
-            self.modelTrain = pickle.load(open('modelNeu.p','rb'))
+            self.modelTrain = pickle.load(open(f'./model/{fileName}' + '.p','rb'))
         elif len(categories) == 1:
             messagebox.showerror('Error', 'Die Anzahl der Klassen muss größer als eins sein!\n Bitte noch weitere Objekte trainieren')
         else:
-            messagebox.showerror('Error', 'Keine neue Objekte gegeben \n Bitte Objekte trainieren')
+            messagebox.showerror('Error', 'Kein neue Objekte gegeben \n Bitte Objekte trainieren')
 
 
     def snapshot(self):
@@ -191,13 +212,10 @@ class App:
                 vektor = probabilities.detach().numpy()
                 probability= self.modelTrain.predict_proba(vektor)
                 for ind,val in enumerate(categories):
-                    output = (f'{ind+1} {val} : {format(probability[0][ind]*100, ".2f")}%\n')
+                    output = (f'{ind+1}. {val}: {format(probability[0][ind]*100, ".2f")}%\n')
                     self.text_output2.insert(END, output)
                 self.text_output2.see(END)
             self.window.after(self.delay, self.update)
-        
-
-
 
 class MyVideoCapture:
     def __init__(self, video_source=0):
