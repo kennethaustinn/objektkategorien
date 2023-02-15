@@ -9,10 +9,18 @@ import os
 import numpy
 import cv2
 import pickle
+from trainieren import *
+from sklearn.model_selection import train_test_split
+from sklearn.model_selection import GridSearchCV
+from sklearn.svm import SVC
+from sklearn.metrics import accuracy_score
 
 device =  "cuda" if torch.cuda.is_available() else "cpu"
 labels = './imagenet_classes.txt'
-modelNeu =pickle.load(open('modelNeu.p','rb'))
+
+data = []
+labelsTraining = []
+categories =[]
 
 data_transforms = transforms.Compose(
 [
@@ -23,6 +31,43 @@ data_transforms = transforms.Compose(
     mean=[0.485, 0.456, 0.406],                
     std=[0.229, 0.224, 0.225]                  
     )])
+
+def trainieren(categories):
+    for category_idx, category in enumerate(categories):
+        for file in os.listdir(os.path.join(category)):
+            name, ext = os.path.splitext(file)
+            ext = ext[1:]
+            if ext == 'npy':
+                vector_path = os.path.join(category, file)
+                vector = numpy.load(vector_path)
+                data.append(vector)
+                labelsTraining.append(category_idx)
+
+    x = numpy.array(data)
+    y = numpy.array(labelsTraining)
+
+    # train / test split
+    x_train, x_test, y_train, y_test = train_test_split(x, y, test_size=0.1, shuffle=True, stratify=labelsTraining)
+
+    x_train2D = (x_train.reshape(x_train.shape[0], x_train.shape[1] * x_train.shape[2]))
+    x_test2D =(x_test.reshape(x_test.shape[0], x_test.shape[1] * x_test.shape[2]))
+    # train classifier
+    classifier = SVC(probability=True)
+
+    parameters = [{'gamma': [0.01, 0.001, 0.0001], 'C': [1, 10, 100, 1000]}]
+
+    modelNeu = GridSearchCV(classifier, parameters)
+
+    modelNeu.fit(x_train2D, y_train)
+
+    y_prediction = modelNeu.predict(x_test2D)
+    # test performance
+
+    score = accuracy_score(y_prediction, y_test)
+
+    print(f"The model is {score*100}% accurate")
+    pickle.dump(modelNeu, open('./modelNeu.p', 'wb'))
+    
 
 def preprocess(image):  
     image = Image.fromarray(image) #Webcam frames are numpy array format, therefore transform back to PIL image
@@ -42,7 +87,7 @@ class App:
         self.window.title(window_title)
         self.video_source = video_source
         self.makeSnapshot = False
-
+        self.modelTrain = None
         # open video source (by default this will try to open the computer webcam)
         self.vid = MyVideoCapture(self.video_source)
 
@@ -61,11 +106,11 @@ class App:
         # Button that lets the user take a snapshot
         self.btn_snapshot=Button(window, text="Aufnehmen", width=25, command=self.buttonClicked)
         self.btn_snapshot.pack()
-        self.label_trainieren=Label(self.window,font="Times 14", text='Bild von dem neuen Objekt schon erfolgreich gespeichert? Dann trainieren')
+        self.label_trainieren=Label(self.window,font="Times 14", text='\nBild von dem neuen Objekt schon erfolgreich gespeichert?\nDann trainieren')
         self.label_trainieren.pack()
         self.btn_trainieren=Button(window, text="Trainieren", width=25, command=self.buttonTrainieren)
         self.btn_trainieren.pack()
-        self.text_output2 = Text(self.window, width=50, height=3,font="Times 12")
+        self.text_output2 = Text(self.window, width=50, height=3,font="Times 12", borderwidth=5)
         self.text_output2.pack()
 
         # After it is called once, the update method will be automatically called every delay milliseconds
@@ -86,10 +131,14 @@ class App:
             self.btn_snapshot['text'] = "Aufnehmen"
     
     def buttonTrainieren(self):
-        categories = []
-        a = self.text_input.get()
-        categories.append(a)
-      
+        if len(categories) > 1:
+            trainieren(categories)
+            self.modelTrain = pickle.load(open('modelNeu.p','rb'))
+        elif len(categories) == 1:
+            messagebox.showerror('Error', 'Die Anzahl der Klassen muss größer als eins sein!\n Bitte noch weitere Objekte trainieren')
+        else:
+            messagebox.showerror('Error', 'Keine neue Objekte gegeben \n Bitte Objekte trainieren')
+
 
     def snapshot(self):
         if self.makeSnapshot == True:
@@ -103,15 +152,15 @@ class App:
                 pass
             # Get a frame from the video source
             ret, frame,vector = self.vid.get_beide()
-            folderName = self.text_input.get()
-            if not os.path.isdir(folderName):
-                os.mkdir(folderName)
+            self.folderName = self.text_input.get()
+            if not os.path.isdir(self.folderName):
+                os.mkdir(self.folderName)
             if ret:
-                cv2.imwrite(f'neueModelle/{folderName}/frame' + time.strftime("%d-%m-%Y-%H-%M-%S") + ".jpg", cv2.cvtColor(frame, cv2.COLOR_RGB2BGR))#
+                cv2.imwrite(f'{self.folderName}/frame' + time.strftime("%d-%m-%Y-%H-%M-%S") + ".jpg", cv2.cvtColor(frame, cv2.COLOR_RGB2BGR))#
                 vector = vector.detach().numpy()
-                numpy.save(f'neueModelle/{folderName}/array' + time.strftime("%d-%m-%Y-%H-%M-%S"), vector)
-                # with open('personal.json', 'w') as json_file:
-                #     json.dump(vector, json_file)
+                numpy.save(f'{self.folderName}/array' + time.strftime("%d-%m-%Y-%H-%M-%S"), vector)
+            if self.folderName not in categories:
+                categories.append(self.folderName)
             
             self.window.after(1000, self.snapshot)
         
@@ -136,17 +185,15 @@ class App:
                     probabilities[0, idx.item()] * 100))
                     self.text_output.insert(END, ergebnis)
             self.text_output.see(END)
-            categories = ['headset', 'ba']
-            # img=cv2.imread('./Test/ba/frame09-02-2023-10-04-27.jpg',1)
-            # image_data = preprocess(img)
-            # logits = model(image_data)
-            # vektor = torch.nn.Softmax(dim=-1)(logits)
-            vektor = probabilities.detach().numpy()
-            probability=modelNeu.predict_proba(vektor)
-            for ind,val in enumerate(categories):
-                output = (f'{ind+1} {val} : {format(probability[0][ind]*100, ".2f")}%\n')
-                self.text_output2.insert(END, output)
-            self.text_output2.see(END)
+            
+
+            if not self.modelTrain == None:
+                vektor = probabilities.detach().numpy()
+                probability= self.modelTrain.predict_proba(vektor)
+                for ind,val in enumerate(categories):
+                    output = (f'{ind+1} {val} : {format(probability[0][ind]*100, ".2f")}%\n')
+                    self.text_output2.insert(END, output)
+                self.text_output2.see(END)
             self.window.after(self.delay, self.update)
         
 
