@@ -20,7 +20,6 @@ labels = './imagenet_classes.txt'
 
 data = []
 labelsTraining = []
-categories =[]
 
 def trainieren(categories):
     for category_idx, category in enumerate(categories):
@@ -89,8 +88,9 @@ class App:
         self.window.title(window_title)
         self.video_source = video_source
         self.makeSnapshot = False
+        self.categories =[]
         self.modelTrain = None # optional kalo ada kategori kosong bisa tak buang
-        self.kategoriKosong = True
+        self.boxOutput2 = False
         # open video source (by default this will try to open the computer webcam)
         self.vid = MyVideoCapture(self.video_source)
 
@@ -113,10 +113,14 @@ class App:
         self.label_trainieren.pack()
         self.btn_trainieren=Button(window, text="Trainieren", width=25, command=self.buttonTrainieren)
         self.btn_trainieren.pack()
-        self.text_output2 = Text(self.window, width=50, height=3,font="Times 12", borderwidth=5)
+        self.text_output2 = Text(self.window, width=50, height=4,font="Times 12", borderwidth=5)
         self.text_output2.pack()
         self.btn_laden=Button(window, text="Laden", width=25, command=self.browseModelFile)
         self.btn_laden.pack()
+        self.btn_ladenfoto=Button(window, text="Laden Foto", width=25, command=self.selectPhotoToTrain)
+        self.btn_ladenfoto.pack()
+        self.textEingetragenObjekt = Text(self.window, width=25, height=3,font="Times 12", borderwidth=5)
+        self.textEingetragenObjekt.pack()
 
         # After it is called once, the update method will be automatically called every delay milliseconds
         self.delay = 100
@@ -124,25 +128,67 @@ class App:
 
         self.window.mainloop()
 
+    def selectPhotoToTrain(self):
+        fileTypes = [('Bilddatei', '*.jpg *.png' )]
+        filePath = filedialog.askopenfilename(title='Wählen Bilddatei aus', initialdir='./',filetypes=fileTypes)
+        pfadParts = filePath.split("/")  
+        if not filePath:
+        # User closed the file dialog without selecting any file
+            messagebox.showerror(title='Fehler', message='Keine Datei ausgewählt.')
+            return
+        elif pfadParts[4] != 'webcamimagenet':
+            messagebox.showerror(title='Fehler', message='Falsche Ordner ausgewählt.')
+            return                 
+        messagebox.showinfo(title='Ausgewählte Datei',message='Sie haben Objekt '+ pfadParts[5] +' ausgewählt')
+        self.categories.append(pfadParts[5])
+        self.textEingetragenObjekt.insert(1.0,pfadParts[5] +'\n')
+        
     def browseModelFile(self):
-        fileTypes = (('P Dateien', '*.p'), ('All files', '*.*')) 
+        fileTypes = (('P Datei', '*.p'), ('Alle Datei', '*.*')) 
         filePath = filedialog.askopenfilename(title='Wählen trainierte Modelldatei aus', initialdir='./model',filetypes=fileTypes)
+        self.categories = self.checkCategory()
+        if not filePath:
+        # User closed the file dialog without selecting any file
+            messagebox.showerror(title='Fehler', message='Keine Datei ausgewählt.')
+            self.modelTrain =None
+            self.categories = []
+            self.text_output2.delete(1.0,END)
+            return
+        if not filePath.endswith('.p'):
+            messagebox.showerror(
+                title='Fehler',
+                message='Bitte wählen Sie eine *.p-Datei aus.'
+            )
+            self.modelTrain =None
+            self.categories = []
+            self.text_output2.delete(1.0,END)
+            return
+        
         ausgewählteDatei = os.path.basename(filePath)
         messagebox.showinfo(title='Ausgewählte Datei',message='Sie haben '+ ausgewählteDatei +' Modell ausgewählt')
         self.modelTrain = pickle.load(open(f'./model/{ausgewählteDatei}','rb'))
         ausgewählteDateiOhneExt = os.path.splitext(ausgewählteDatei)[0]
         parts = ausgewählteDateiOhneExt.split('-')
         for i in parts[1:]:
-            categories.append(i)
-    def categoryIn(self):
-        if self.kategoriKosong == True:
-            self.kategoriKosong = False
-            self.browseModelFile()
+            self.categories.append(i)
+        #     print('nachher' ,self.categories)
+        # print('end',self.categories)
+
+    def checkCategory(self):
+        if len(self.categories) != 0:
+            return []
         else: 
-            self.kategoriKosong = True
+            return self.categories
+        
     def buttonClicked(self):
         if self.makeSnapshot == False:
             self.makeSnapshot = True
+            if self.modelTrain != None:
+                self.modelTrain = None
+                self.categories = []
+                self.text_output2.delete(1.0,END)
+            else:
+                pass
             self.snapshot()
             self.btn_snapshot['text'] = "Stop"
         else:
@@ -152,10 +198,14 @@ class App:
             self.btn_snapshot['text'] = "Aufnehmen"
     
     def buttonTrainieren(self):
-        if len(categories) > 1:
-            trainieren(categories)
-            self.modelTrain = pickle.load(open(f'./model/{fileName}' + '.p','rb'))
-        elif len(categories) == 1:
+        if len(self.categories) > 1:
+            if self.modelTrain == None:
+                trainieren(self.categories)
+                self.textEingetragenObjekt.delete(1.0,END)
+                self.modelTrain = pickle.load(open(f'./model/{fileName}' + '.p','rb'))
+            else:
+                messagebox.showinfo('Information', 'Ein Model ist bereit trainiert, um neue Modelle zu trainieren bitte erstmal neue Objekte Aufnehmen')
+        elif len(self.categories) == 1:
             messagebox.showerror('Error', 'Die Anzahl der Klassen muss größer als eins sein!\n Bitte noch weitere Objekte trainieren')
         else:
             messagebox.showerror('Error', 'Kein neue Objekte gegeben \n Bitte Objekte trainieren')
@@ -180,9 +230,9 @@ class App:
                 cv2.imwrite(f'{self.folderName}/frame' + time.strftime("%d-%m-%Y-%H-%M-%S") + ".jpg", cv2.cvtColor(frame, cv2.COLOR_RGB2BGR))#
                 vector = vector.detach().numpy()
                 numpy.save(f'{self.folderName}/array' + time.strftime("%d-%m-%Y-%H-%M-%S"), vector)
-            if self.folderName not in categories:
-                categories.append(self.folderName)
-            
+            if self.folderName not in self.categories:
+                self.categories.append(self.folderName)
+                self.textEingetragenObjekt.insert(1.0,self.folderName+'\n')
             self.window.after(1000, self.snapshot)
         
 
@@ -206,15 +256,15 @@ class App:
                     probabilities[0, idx.item()] * 100))
                     self.text_output.insert(END, ergebnis)
             self.text_output.see(END)
-            
-
-            if not self.modelTrain == None:
+            # print('update' + str(self.modelTrain))
+            if self.modelTrain != None:
                 vektor = probabilities.detach().numpy()
                 probability= self.modelTrain.predict_proba(vektor)
-                for ind,val in enumerate(categories):
+                for ind,val in enumerate(self.categories):
                     output = (f'{ind+1}. {val}: {format(probability[0][ind]*100, ".2f")}%\n')
                     self.text_output2.insert(END, output)
                 self.text_output2.see(END)
+                self.boxOutput2 = True
             self.window.after(self.delay, self.update)
 
 class MyVideoCapture:
