@@ -24,8 +24,8 @@ def train(categories):
     # train / test split
     x_train, x_test, y_train, y_test = train_test_split(x, y, test_size=0.1, shuffle=True, stratify=labels_training)
 
-    x_train2D = (x_train.reshape(x_train.shape[0], x_train.shape[1] * x_train.shape[2]))
-    x_test2D =(x_test.reshape(x_test.shape[0], x_test.shape[1] * x_test.shape[2]))
+    x_train_2d = (x_train.reshape(x_train.shape[0], x_train.shape[1] * x_train.shape[2]))
+    x_test_2d =(x_test.reshape(x_test.shape[0], x_test.shape[1] * x_test.shape[2]))
     # train classifier
     classifier = SVC(probability=True)
 
@@ -33,9 +33,9 @@ def train(categories):
 
     model_new = GridSearchCV(classifier, parameters)
 
-    model_new.fit(x_train2D, y_train)
+    model_new.fit(x_train_2d, y_train)
     
-    y_prediction = model_new.predict(x_test2D)
+    y_prediction = model_new.predict(x_test_2d)
     score = accuracy_score(y_prediction, y_test)
 
     global file_name 

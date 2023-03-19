@@ -41,18 +41,17 @@ class App:
         self.text_output_pre = customtkinter.CTkTextbox(self.frame_left, width=350, height=100,font=customtkinter.CTkFont(size=12))
         self.text_output_pre.grid(row =3, column=0, padx=20, pady=0, sticky="nsew")
 
-        # Mittel Frame
+        # All the UI elements in middle frame
         self.frame_middle = customtkinter.CTkFrame(self.window)
         self.frame_middle.grid(row = 0,column=1, padx=10, pady=20, sticky="nsew")
         self.label_objekt_trainieren = customtkinter.CTkLabel(self.frame_middle, font=customtkinter.CTkFont(size=18), text='Objekte Trainieren')
         self.label_objekt_trainieren.grid(row=0, column=0, padx=20, pady=20)
         self.text_input =customtkinter.CTkEntry(self.frame_middle, width =250, placeholder_text="Objekt eingeben")
         self.text_input.grid(row=1, column=0,  padx=(20, 20), pady=(0,0), sticky="nsew")
-        # Button that lets the user take a take_photo
-        self.btn_snapshot=customtkinter.CTkButton(self.frame_middle, text="Aufnehmen", command=self.button_clicked)
-        self.btn_snapshot.grid(row =2,column = 0,padx=(20,20),pady=(10,20))
-        self.label_listedObjects = customtkinter.CTkLabel(self.frame_middle, font=customtkinter.CTkFont(size=14), text='Aufgenommene- / Ausgewählte Objekte')
-        self.label_listedObjects.grid(row=4, column=0, padx=20, pady=(50,10))
+        self.button_aufnehmen=customtkinter.CTkButton(self.frame_middle, text="Aufnehmen", command=self.button_clicked)
+        self.button_aufnehmen.grid(row =2,column = 0,padx=(20,20),pady=(10,20))
+        self.label_gelistete_objekte = customtkinter.CTkLabel(self.frame_middle, font=customtkinter.CTkFont(size=14), text='Aufgenommene- / Ausgewählte Objekte')
+        self.label_gelistete_objekte.grid(row=4, column=0, padx=20, pady=(50,10))
         self.button_objekt_laden=customtkinter.CTkOptionMenu(self.frame_middle, values=self.list_objects, command=self.select_photo_to_train)
         self.button_objekt_laden.set('Objekt laden')
         self.button_objekt_laden.grid(row =5,column = 0,padx=(20,20),pady=(0,10))
@@ -64,8 +63,8 @@ class App:
         self.frame_right =customtkinter.CTkFrame(self.window)
         self.frame_right.grid(row = 0,column=2, padx=(10,20), pady=20, sticky="nsew")
         self.frame_right.grid_rowconfigure(2, weight=0)
-        self.label_trainierteObjekt = customtkinter.CTkLabel(self.frame_right, font=customtkinter.CTkFont(size=18), text='Neu trainiertes Modell')
-        self.label_trainierteObjekt.grid(row=0, column=0, padx=20, pady=20)
+        self.label_trainierte_objekt = customtkinter.CTkLabel(self.frame_right, font=customtkinter.CTkFont(size=18), text='Neu trainiertes Modell')
+        self.label_trainierte_objekt.grid(row=0, column=0, padx=20, pady=20)
         self.button_model_laden=customtkinter.CTkButton(self.frame_right, text="Modell laden", command=self.select_model_file)
         self.button_model_laden.grid(row =1,column = 0,padx=(20,20),pady=(0,20))
         self.text_output_new = customtkinter.CTkTextbox(self.frame_right,width=250, height=70,font=customtkinter.CTkFont(size=12))
@@ -155,7 +154,7 @@ class App:
             self.take_shot = False
             messagebox.showinfo("Information", "Bilder erfolgreich gespeichert!")
             self.text_input.delete(0, END)
-            self.btn_snapshot.configure(text="Aufnehmen")
+            self.button_aufnehmen.configure(text="Aufnehmen")
     
     def training(self):
         if len(self.categories) > 1:
@@ -191,7 +190,7 @@ class App:
                 return
             else: 
                 pass
-            self.btn_snapshot.configure(text="Stop")
+            self.button_aufnehmen.configure(text="Stop")
             # Get a frame from the video source
             ret, frame, vector = self.vid.get_vector_frame()
             self.folder_name = self.text_input.get()
@@ -233,19 +232,11 @@ class App:
             if self.new_model != None:
                 vektor = probabilities.detach().numpy()
                 probability= self.new_model.predict_proba(vektor)
-                n = len(self.categories)
-                sorted_indices = numpy.argsort(probability)[:,:-n-1:-1] # jadi ng sort 0 1 2
-                sorted_prob_new_model = numpy.sort(probability)[:,:-n-1:-1] # ini ngsort 99% 10% 5%
-                list = sorted_indices.flatten().tolist() # ini biar dari 2d numpy jadi flat array 0,1,2
-                sorted_categories = [x for _,x in sorted(zip(list,self.categories))]
-
-                if n>=3 :
-                    for ind,val in enumerate(sorted_categories[:3]):
-                     output = (f'{ind+1}. {val}: {format(sorted_prob_new_model[0][ind]*100, ".2f")}%\n')
-                     self.text_output_new.insert(END, output)
-                else: 
-                    for ind,val in enumerate(sorted_categories):
-                     output = (f'{ind+1}. {val}: {format(sorted_prob_new_model[0][ind]*100, ".2f")}%\n')
+                probability_1d = probability.flatten().tolist()
+                dictionary = dict(zip(self.categories, probability_1d))
+                sorted_dict = dict(sorted(dictionary.items(), key=lambda item: -item[1]))
+                for idx, (key,value) in enumerate(list(sorted_dict.items())[:3]):
+                     output = (f'{idx+1}. {key}: {format(value*100, ".2f")}%\n')
                      self.text_output_new.insert(END, output)
                 self.text_output_new.see(END)
             self.window.after(100, self.update)
