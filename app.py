@@ -13,7 +13,7 @@ import training
 import pretrained
 
 class App:
-    def __init__(self, window, window_title, video_source=1):
+    def __init__(self, window, window_title, video_source=0):
         self.window = window
         self.window.title(window_title)
         self.video_source = video_source
@@ -100,7 +100,7 @@ class App:
             self.categories.append(selected_object)   
             messagebox.showinfo(title='Ausgewählte Datei',message='Sie haben Objekt '+ selected_object +' ausgewählt')
         else: 
-            messagebox.showinfo(title='Ausgewählte Datei',message='Sie haben das Objekt bereit '+ selected_object +' ausgewählt')
+            messagebox.showinfo(title='Ausgewählte Datei',message='Objekt '+ selected_object +' ist bereit ausgewählt')
         
     def select_model_file(self):
         file_types = (('P Datei', '*.p'), ('Alle Datei', '*.*')) 
@@ -242,7 +242,7 @@ class App:
             self.window.after(100, self.update)
 
 class MyVideoCapture:
-    def __init__(self, video_source=1, width=848, height=480):
+    def __init__(self, video_source=0, width=848, height=480):
         # Open the video source
         self.vid = cv2.VideoCapture(video_source)
         self.vid.set(cv2.CAP_PROP_FRAME_WIDTH, width)
