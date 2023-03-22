@@ -7,7 +7,7 @@ An application that utilizes webcam input to categorize objects in real-time.
 
 This is a desktop application programmed in Python that uses a pre-trained ImageNet model to categorize objects. Additionally, the application allows users to train a new model to categorize new objects.
 
-![image](/uploads/d6a34d8977c6290af9d0fc845959d3e8/image.png)
+![image](/uploads/ba74c8cbf5efd6892d40073e388a3adb/image.png)
 
 
 ## What is in this repository?
